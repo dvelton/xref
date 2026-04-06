@@ -430,7 +430,7 @@ def resolve_references(structure: Dict, references: Dict) -> Dict[str, Any]:
     
     resolved = {
         "internal_references": [],
-        "defined_terms": structure.get("defined_terms", []),
+        "defined_terms": list(structure.get("defined_terms", [])),
         "external_citations": references.get("external_citations", []),
         "unresolved": [],
         "circular_chains": []
@@ -460,6 +460,76 @@ def resolve_references(structure: Dict, references: Dict) -> Dict[str, Any]:
                     "unresolved_type": "broken_reference",
                     "reason": f"No section {target} found in document"
                 })
+    
+    # Resolve circular definitions: replace "has the meaning set forth in
+    # Section X" with the actual text from that section
+    forward_ref = re.compile(
+        r'has the meaning (?:set forth|given|assigned|specified|defined) in '
+        r'(?:Section|Clause|Article)\s+((?:\d+\.)*\d+(?:\([a-z]+\))?)',
+        re.IGNORECASE
+    )
+    for term in resolved["defined_terms"]:
+        defn = term.get("definition", "")
+        m = forward_ref.search(defn)
+        if m:
+            target_id = m.group(1)
+            target_sec = sections_by_id.get(target_id)
+            if target_sec and target_sec.get("text"):
+                term["definition"] = target_sec["text"]
+                term["resolved_from"] = f"Section {target_id}"
+
+    # Expand inline term references so each definition is self-contained.
+    # When a definition mentions another defined term, append that term's
+    # meaning in parentheses so the reader never has to cross-reference.
+    term_defs = {}
+    for term in resolved["defined_terms"]:
+        term_defs[term["term"]] = term.get("definition", "")
+
+    # Sort by length descending so longer terms match before shorter ones
+    # (e.g., "AI Model API Early Access" before "AI Model API")
+    terms_longest_first = sorted(term_defs.keys(), key=len, reverse=True)
+
+    def expand_definition(defn: str, visited: set) -> str:
+        """Recursively expand defined terms found inside a definition."""
+        for t in terms_longest_first:
+            if t in visited:
+                continue
+            pattern = re.compile(r'\b' + re.escape(t) + r'\b')
+            m = pattern.search(defn)
+            if not m:
+                continue
+            # Skip if this match is inside a prior "(i.e., ...)" expansion
+            prefix = defn[:m.start()]
+            if prefix.count("(i.e.,") > prefix.count(")"):
+                continue
+            # Skip if the term is part of a larger capitalized phrase
+            # (e.g., "Agreement" inside "Non-Disclosure Agreement")
+            before = defn[max(0, m.start()-1):m.start()]
+            if before and before[-1].isalpha():
+                continue
+            # Check if preceded by a capitalized word that suggests a compound
+            # name, like "Non-Disclosure Agreement" or "Early Access Agreement"
+            preceding_ctx = defn[max(0, m.start()-30):m.start()]
+            if preceding_ctx and re.search(r'[A-Z]\w+[\s-]+$', preceding_ctx):
+                # Looks like "SomeWord Agreement" -- likely a compound name
+                # Only expand if 'this' or 'the' immediately precedes
+                if not re.search(r'\b(?:this|the)\s+$', preceding_ctx, re.IGNORECASE):
+                    continue
+            inner = term_defs.get(t, "")
+            if not inner or inner == defn:
+                continue
+            expanded_inner = expand_definition(inner, visited | {t})
+            if len(expanded_inner) > 200:
+                expanded_inner = expanded_inner[:197] + "..."
+            replacement = m.group(0) + " (i.e., " + expanded_inner + ")"
+            defn = defn[:m.start()] + replacement + defn[m.end():]
+        return defn
+
+    for term in resolved["defined_terms"]:
+        original = term.get("definition", "")
+        expanded = expand_definition(original, {term["term"]})
+        if expanded != original:
+            term["definition_expanded"] = expanded
     
     return resolved
 

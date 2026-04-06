@@ -9,7 +9,6 @@
 <body>
     <div class="provenance-bar">
         <span class="provenance-item"><strong>Source:</strong> {{ source_file }}</span>
-        <span class="provenance-item"><strong>Hash:</strong> <code>{{ file_hash[:16] }}...</code></span>
         <span class="provenance-item"><strong>Generated:</strong> {{ "now" }}</span>
     </div>
 
@@ -31,8 +30,8 @@
                     {% for term in defined_terms %}
                     <div class="glossary-item" data-term="{{ term.term }}">
                         <div class="term-name">{{ term.term }}</div>
-                        <div class="term-def">{{ term.definition[:100] }}{% if term.definition|length > 100 %}...{% endif %}</div>
-                        <div class="term-meta">Defined in {{ term.defined_in or "document" }}</div>
+                        <div class="term-def">{% set d = term.definition_expanded or term.definition %}{{ d[:150] }}{% if d|length > 150 %}...{% endif %}</div>
+                        <div class="term-meta">{% if term.resolved_from %}Resolved from {{ term.resolved_from }}{% elif term.defined_in %}Defined in {{ term.defined_in }}{% else %}Defined in document{% endif %}</div>
                     </div>
                     {% endfor %}
                 </div>
@@ -127,7 +126,7 @@
                         <strong>{{ term.term }}</strong>
                     </div>
                     <div class="panel-body">
-                        {{ term.definition }}
+                        {{ term.definition_expanded or term.definition }}
                     </div>
                     <div class="panel-footer">
                         {% if term.scope == "global" %}
