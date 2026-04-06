@@ -1,0 +1,21 @@
+{
+  "name": "xref",
+  "description": "Cross-reference and defined term resolver for legal documents. Produces an interactive HTML viewer where every internal reference, defined term, and external statutory citation is hoverable/expandable in place.",
+  "version": "1.0.0",
+  "author": {
+    "name": "dvelton"
+  },
+  "repository": "https://github.com/dvelton/xref",
+  "license": "MIT",
+  "keywords": [
+    "cross-reference",
+    "legal",
+    "contracts",
+    "defined-terms",
+    "statutory-citations",
+    "document-analysis"
+  ],
+  "skills": [
+    "./skills/xref"
+  ]
+}
