@@ -124,10 +124,13 @@
             });
         }
         
-        // Mark up defined terms
+        // Mark up defined terms (longest first to avoid partial matches)
         if (window.xrefData.defined_terms) {
-            window.xrefData.defined_terms.forEach((term, idx) => {
-                const pattern = `\\b${escapeRegExp(term.term)}\\b`;
+            const sorted = [...window.xrefData.defined_terms].sort(
+                (a, b) => b.term.length - a.term.length
+            );
+            sorted.forEach((term) => {
+                const pattern = `(?<![\\w">])${escapeRegExp(term.term)}(?![\\w<])`;
                 html = html.replace(
                     new RegExp(pattern, 'g'),
                     `<span class="defined-term" data-term="${term.term}">${term.term}</span>`

@@ -100,7 +100,7 @@
             </div>
 
             <!-- Hidden panels for hover/click interactions -->
-            <div id="hover-panels" style="display: none;">
+            <div id="hover-panels">
                 {% for ref in internal_refs %}
                 <div class="hover-panel" id="panel-{{ ref.id }}" data-ref-id="{{ ref.id }}">
                     {% if ref.resolved %}
