@@ -43,3 +43,4 @@ env/
 # Test outputs
 test/output/
 *-xref.html
+test/output/
