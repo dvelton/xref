@@ -4,6 +4,9 @@ Xref fixes this. Give it a contract, statute, or regulation and it produces an i
 
 Nothing is rewritten or summarized. The original document text is preserved exactly. The augmentation is purely navigational.
 
+![Xref viewer showing a vendor agreement with glossary sidebar and defined terms underlined in the document](screenshots/xref-viewer.png)
+*Interactive viewer with glossary sidebar. Defined terms are dotted-underlined throughout the document; hovering shows the definition.*
+
 ## What it does
 
 You give Copilot a legal document (Word, PDF, or URL) and Xref produces an interactive HTML file on your Desktop where:
@@ -19,6 +22,9 @@ You give Copilot a legal document (Word, PDF, or URL) and Xref produces an inter
 - A sidebar provides a glossary, unresolved items, and a table of contents.
 
 The output is a single self-contained HTML file. Open it in any browser. No server required.
+
+![Document health tab showing statistics and broken references](screenshots/xref-health.png)
+*Document health tab surfaces broken references, undefined terms, and other quality issues in the source document.*
 
 ## Installation
 
