@@ -37,8 +37,15 @@ class TestXref(unittest.TestCase):
         self.assertIn("numbering_scheme", result)
         self.assertIn("parser_confidence", result)
         
-        # Should have found sections
-        self.assertGreater(len(result["sections"]), 0)
+        flat_sections = xref.flatten_sections(result["sections"])
+        section_ids = [s["id"] for s in flat_sections]
+        self.assertIn("1", section_ids)
+        self.assertIn("7.3", section_ids)
+        self.assertIn("Schedule A", section_ids)
+        self.assertIn("Schedule C", section_ids)
+
+        section_73 = next(s for s in flat_sections if s["id"] == "7.3")
+        self.assertIn("sole and exclusive remedy", section_73["text"])
         
         # Should have found defined terms
         self.assertGreater(len(result["defined_terms"]), 0)
@@ -48,7 +55,7 @@ class TestXref(unittest.TestCase):
         self.assertIn("Confidential Information", term_names)
         self.assertIn("Services", term_names)
         
-        print(f"\n✓ Extracted {len(result['sections'])} sections and {len(result['defined_terms'])} defined terms")
+        print(f"\n✓ Extracted {len(flat_sections)} sections and {len(result['defined_terms'])} defined terms")
     
     def test_find_references(self):
         """Test finding references in document."""
@@ -61,7 +68,7 @@ class TestXref(unittest.TestCase):
         text = "\n".join([p.text for p in doc.paragraphs])
         
         # Find references
-        result = xref.find_references(text, structure["sections"])
+        result = xref.find_references(text, structure["sections"], structure["defined_terms"])
         
         # Check structure
         self.assertIn("internal_references", result)
@@ -78,10 +85,17 @@ class TestXref(unittest.TestCase):
         # Check for specific references
         ref_texts = [r["text"] for r in result["internal_references"]]
         self.assertTrue(any("Section 7.3" in r for r in ref_texts))
+        self.assertFalse(any(r == "Section 512" for r in ref_texts))
+        self.assertTrue(any(r == "Schedule A" for r in ref_texts))
         
         # Check for external citations
         ext_texts = [e["text"] for e in result["external_citations"]]
         self.assertTrue(any("GDPR" in e for e in ext_texts))
+        self.assertTrue(any("17 U.S.C. Section 512" in e for e in ext_texts))
+
+        self.assertGreater(len(result["defined_term_usages"]), 0)
+        undefined_terms = [u["text"] for u in result["potential_undefined_terms"]]
+        self.assertIn("Approved Vendor List", undefined_terms)
         
         print(f"\n✓ Found {len(result['internal_references'])} internal refs, "
               f"{len(result['external_citations'])} external citations")
@@ -94,7 +108,7 @@ class TestXref(unittest.TestCase):
         from docx import Document as DocxDocument
         doc = DocxDocument(self.fixture_path)
         text = "\n".join([p.text for p in doc.paragraphs])
-        references = xref.find_references(text, structure["sections"])
+        references = xref.find_references(text, structure["sections"], structure["defined_terms"])
         
         # Resolve
         result = xref.resolve_references(structure, references)
@@ -102,16 +116,51 @@ class TestXref(unittest.TestCase):
         # Check structure
         self.assertIn("internal_references", result)
         self.assertIn("defined_terms", result)
+        self.assertIn("sections", result)
         self.assertIn("unresolved", result)
         
         # Should have resolved some references
         resolved_count = sum(1 for r in result["internal_references"] if r.get("resolved"))
         self.assertGreater(resolved_count, 0)
         
-        # Should have some unresolved (broken references in the fixture)
-        self.assertGreater(len(result["unresolved"]), 0)
+        resolved_targets = [r["target"]["id"] for r in result["internal_references"]]
+        self.assertIn("8", resolved_targets)
+        self.assertIn("Schedule A", resolved_targets)
+
+        unresolved = [(u["unresolved_type"], u["text"]) for u in result["unresolved"]]
+        self.assertIn(("broken_reference", "Section 14.6"), unresolved)
+        self.assertIn(("broken_reference", "Schedule D"), unresolved)
+        self.assertIn(("undefined_term", "Approved Vendor List"), unresolved)
+        self.assertNotIn(("broken_reference", "Section 512"), unresolved)
         
         print(f"\n✓ Resolved {resolved_count} references, {len(result['unresolved'])} unresolved")
+
+    def test_numeric_schedule_does_not_hijack_section_reference(self):
+        """Numeric schedule labels should not override same-numbered sections."""
+        sections = [
+            {
+                "id": "8",
+                "number": "8",
+                "title": "Indemnification",
+                "level": 1,
+                "lookup_keys": ["8", "Section 8", "Clause 8"],
+                "children": [],
+            },
+            {
+                "id": "Schedule 8",
+                "number": "Schedule 8",
+                "title": "Fee Schedule",
+                "level": 1,
+                "lookup_keys": ["Schedule 8", "schedule 8"],
+                "children": [],
+            },
+        ]
+
+        section_index = xref.build_section_index(sections)
+
+        self.assertEqual(xref.resolve_section_target("8", section_index)["id"], "8")
+        self.assertEqual(xref.resolve_section_target("Section 8", section_index)["id"], "8")
+        self.assertEqual(xref.resolve_section_target("Schedule 8", section_index)["id"], "Schedule 8")
     
     def test_gdpr_bundled(self):
         """Test that GDPR bundled data loads correctly."""
@@ -165,7 +214,7 @@ class TestXref(unittest.TestCase):
         from docx import Document as DocxDocument
         doc = DocxDocument(self.fixture_path)
         text = "\n".join([p.text for p in doc.paragraphs])
-        references = xref.find_references(text, structure["sections"])
+        references = xref.find_references(text, structure["sections"], structure["defined_terms"])
         
         # Resolve
         resolved = xref.resolve_references(structure, references)
@@ -199,12 +248,43 @@ class TestXref(unittest.TestCase):
             self.assertIn("xrefData", html)
             self.assertIn("Glossary", html)
             self.assertIn("Document Health", html)
+            self.assertIn('href="#section-7.3"', html)
+            self.assertIn('id="section-7.3"', html)
+            self.assertIn("sole and exclusive remedy", html)
+            self.assertIn('class="external-citation"', html)
+            self.assertIn("Approved Vendor List", html)
+            self.assertIn("SHA-256", html)
+            self.assertNotIn("<strong>Generated:</strong> now", html)
+            self.assertNotIn("No section 512", html)
             
             print(f"\n✓ Generated HTML output: {output_path}")
             
         finally:
             # Cleanup
             os.unlink(resolved_path)
+
+    def test_run_pipeline(self):
+        """Test one-command pipeline."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "sample-xref.html"
+            result = xref.run_pipeline(
+                self.fixture_path,
+                output=str(output_path),
+                title="Sample Contract",
+                fetch_externals=False,
+            )
+
+            self.assertTrue(output_path.exists())
+            self.assertEqual(result["summary"]["output"], str(output_path))
+            self.assertGreaterEqual(result["summary"]["internal_references_resolved"], 10)
+            self.assertEqual(result["summary"]["internal_references_unresolved"], 2)
+            self.assertGreaterEqual(result["summary"]["defined_terms"], 8)
+
+            html = output_path.read_text()
+            self.assertIn("https://uscode.house.gov/view.xhtml", html)
+            self.assertIn("https://gdpr-info.eu/art-28-gdpr/", html)
     
     def test_setup_check(self):
         """Test setup check command."""

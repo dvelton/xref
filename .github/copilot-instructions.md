@@ -20,11 +20,12 @@ See `skills/xref/SKILL.md` for full workflow instructions.
 
 ## Typical workflow
 
-1. Extract structure from source document
-2. Find all references
-3. Resolve references to targets
-4. Fetch external citations (optional)
-5. Build interactive HTML viewer
-6. Report results with document health statistics
+Use the one-command pipeline unless you are debugging parser output:
+
+```bash
+python3 skills/xref/tools/xref.py run --source "<path-to-document>"
+```
+
+The command extracts structure, finds references and defined terms, resolves targets, optionally fetches external citations, builds the interactive HTML viewer, and reports document health statistics.
 
 See SKILL.md for detailed step-by-step instructions.

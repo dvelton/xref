@@ -80,6 +80,24 @@ bash setup.sh --web
 python3 skills/xref/tools/xref.py setup-check
 ```
 
+### Run it directly
+
+If you cloned the repo, this single command creates the viewer:
+
+```bash
+python3 skills/xref/tools/xref.py run --source ~/Desktop/vendor-agreement.docx
+```
+
+By default, the HTML file is saved to your Desktop as `<document-name>-xref.html`. Use `--output` to choose a different location:
+
+```bash
+python3 skills/xref/tools/xref.py run \
+  --source ~/Desktop/vendor-agreement.docx \
+  --output ~/Desktop/vendor-agreement-xref.html
+```
+
+Use `--no-fetch-external` if you want to skip network calls for external statutes and just link those citations to their official sources.
+
 ## How to use it
 
 In a Copilot CLI conversation, tell it to use xref:
@@ -97,6 +115,8 @@ resolve the cross-references in ~/Documents/service-agreement.pdf
 ```
 
 Xref activates, parses the document, resolves all references, and generates an interactive HTML file on your Desktop.
+
+The Copilot skill uses the same one-command pipeline as the direct CLI command. It does not require you to manage intermediate JSON files.
 
 ## What it supports
 
@@ -116,13 +136,12 @@ Xref activates, parses the document, resolves all references, and generates an i
 
 ## How it works
 
-1. Xref parses the document to extract its section structure using Word heading styles (for .docx) or font-size heuristics (for PDF)
-2. It identifies all cross-references using regex patterns for common legal reference formats
-3. It extracts defined terms using a 5-step priority algorithm (definitions section, inline quotations, parentheticals, section-scoped definitions, capitalization patterns)
-4. It resolves each reference to its target section, handling ambiguity with preference order: exact match > case-insensitive match > numeric equivalent
-5. For external statutory citations, it fetches the text from public legal databases with local caching and retry logic
-6. It assembles an interactive HTML file with all CSS and JavaScript inlined. Every reference, term, and citation becomes a hoverable element with pre-rendered panels for instant display.
-7. The output lands on your Desktop
+1. Xref parses the document into a structured model with paragraphs, headings, section bodies, schedules, exhibits, and anchors.
+2. It identifies internal cross-references, defined-term uses, possible undefined terms, and external citations. External citations are kept separate so `17 U.S.C. Section 512` is not mistaken for an internal `Section 512`.
+3. It resolves references against the section index, including parent sections like `Section 8` and schedule references like `Schedule A`.
+4. It optionally fetches external statute text from public legal databases with local caching and retry logic.
+5. It renders escaped, structured HTML with real section anchors, a populated TOC, hover panels, glossary entries, document health items, and inlined CSS/JavaScript.
+6. The output lands on your Desktop unless you pass `--output`.
 
 ## Features
 
